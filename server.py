@@ -1,6 +1,7 @@
-from flask import Flask, render_template_string, request, redirect, url_for
+from flask import Flask, render_template_string, request, redirect, url_for, jsonify
 import os
 from drafter import run_player_image_pipeline
+from threading import Thread
 
 gallery_dir = os.path.join(os.path.dirname(__file__), 'final_graphics')
 
@@ -10,7 +11,7 @@ FORM_HTML = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Player Image Generator</title>
+    <title>RFP's Draft Graphics Generator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { font-family: sans-serif; background: #222; color: #fff; text-align: center; }
@@ -20,7 +21,7 @@ FORM_HTML = '''
 </head>
 <body>
     <div class="container">
-        <h1>Player Image Generator</h1>
+        <h1>RFP's Draft Image Generator</h1>
         <form method="post" action="/generate">
             <input type="text" name="player_name" placeholder="Player Name" required><br>
             <input type="number" name="pick_number" placeholder="Pick Number" required><br>
@@ -47,12 +48,32 @@ GALLERY_HTML = '''
 </head>
 <body>
     <h1>Generated Images for {{ player_name }}</h1>
-    <div class="gallery">
+    <div class="gallery" id="gallery">
         {% for img in images %}
             <img src="/final_graphics/{{ img }}" alt="{{ img }}">
         {% endfor %}
     </div>
     <br><a href="/">&larr; Generate another</a>
+    <script>
+    const playerName = {{ player_name|tojson }};
+    function fetchImages() {
+        fetch(`/gallery_data?player_name=${encodeURIComponent(playerName)}`)
+            .then(resp => resp.json())
+            .then(data => {
+                const gallery = document.getElementById('gallery');
+                // Remove all children
+                while (gallery.firstChild) gallery.removeChild(gallery.firstChild);
+                // Add new images
+                data.images.forEach(img => {
+                    const el = document.createElement('img');
+                    el.src = `/final_graphics/${img}`;
+                    el.alt = img;
+                    gallery.appendChild(el);
+                });
+            });
+    }
+    setInterval(fetchImages, 2000); // Poll every 2 seconds
+    </script>
 </body>
 </html>
 '''
@@ -67,10 +88,14 @@ def generate():
     pick_number = request.form.get('pick_number', '').strip()
     if not player_name or not pick_number.isdigit():
         return render_template_string(FORM_HTML, error="Please enter valid player name and pick number.")
-    success, result = run_player_image_pipeline(player_name, pick_number)
-    if not success:
-        return render_template_string(FORM_HTML, error=result)
-    return redirect(url_for('gallery', player_name=result))
+
+    # Start image generation in background
+    def bg_task():
+        run_player_image_pipeline(player_name, pick_number)
+    Thread(target=bg_task, daemon=True).start()
+
+    # Immediately redirect to gallery
+    return redirect(url_for('gallery', player_name=player_name))
 
 @app.route('/gallery')
 def gallery():
@@ -81,6 +106,15 @@ def gallery():
               player_name.lower().replace(' ', '_') in f.lower()]
     images.sort()
     return render_template_string(GALLERY_HTML, images=images, player_name=player_name)
+
+@app.route('/gallery_data')
+def gallery_data():
+    player_name = request.args.get('player_name', '')
+    images = [f for f in os.listdir(gallery_dir)
+              if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')) and
+              player_name.lower().replace(' ', '_') in f.lower()]
+    images.sort()
+    return jsonify({'images': images})
 
 # Serve static images from final_graphics
 def _static_serve(path):
