@@ -9,6 +9,7 @@ from mimetypes import guess_type
 
 PROSPECT_DATA_PATH = 'data\cbs_prospect_rankings.csv'
 
+
 # Clear any existing images in the directory
 def clear_temp_images():
     for file in os.listdir('./temp_images'):
@@ -40,63 +41,6 @@ def fetch_images(Name):
         size = 'large',
     )
     google_crawler.crawl(keyword=Name, max_num=5, filters=filters)
-
-
-# Crop the image to a square with the player in the center
-def crop_images():
-    for file in os.listdir('./temp_images'):
-        if file.lower() == 'draft_template_filled.png':
-            continue
-        try:
-            file_path = os.path.join('./temp_images', file)
-            img = Image.open(file_path)
-            width, height = img.size
-
-            # Determine the size of the square crop
-            new_size = min(width, height)
-
-            # Calculate the coordinates for the crop
-            left = (width - new_size) / 2
-            top = 0  # Changed from (height - new_size) / 2 to 0 for top alignment
-            right = (width + new_size) / 2
-            bottom = top + new_size  # Changed to ensure square dimensions from the top
-
-            # Crop and save the image
-            cropped_img = img.crop((left, top, right, bottom))
-            base, ext = os.path.splitext(file)
-            new_filename = f"{base}_cropped{ext}"
-            new_path = os.path.join('./temp_images', new_filename)
-            cropped_img.save(new_path)
-        except Exception as e:
-            print(f"Error while processing image {file}: {e}")
-
-
-# Adds the filled template on top of our images
-def apply_template_overlay():
-    template_path = 'temp_images/draft_template_filled.png'
-    template = Image.open(template_path).convert("RGBA")
-    template_size = template.size
-
-    for file in os.listdir('./temp_images'):
-        if not file.lower().endswith(('_cropped.png', '_cropped.jpg')):
-            continue
-        if file.lower() == 'draft_template_filled.png':
-            continue
-        file_path = os.path.join('./temp_images', file)
-        base_img = Image.open(file_path).convert("RGBA")
-
-        # Resize base image to match template if needed
-        if base_img.size != template_size:
-            base_img = base_img.resize(template_size)
-
-        # Composite the template over the image
-        combined = Image.alpha_composite(base_img, template)
-
-        # Save result
-        base_name, ext = os.path.splitext(file)
-        output_path = os.path.join('./final_graphics', f"{base_name}_templated.png")
-        combined.save(output_path)
-        print(f"Templated image saved: {output_path}")
 
 
 # Returns a string representing the round and pick for the given overall pick
@@ -163,7 +107,7 @@ def add_text_to_template(player_data):
     text_box_height = int(height * 0.05)
 
     # Fixed X starting point
-    start_x = int(width * 0.28)
+    start_x = int(width * 0.27)
     max_text_width = int(width * 0.66)  # from start_x to right edge (adjustable)
 
     # Fit name text
@@ -212,9 +156,45 @@ def find_closest_player(name, csv_path=PROSPECT_DATA_PATH):
 
 def generate_samples(player_data):
     fetch_images(player_data["Name"])
-    add_text_to_template(player_data)
-    crop_images()
-    apply_template_overlay()
+    add_text_to_template(player_data)  # Creates the filled template once
+
+    template_path = './temp_images/draft_template_filled.png'
+    if not os.path.exists(template_path):
+        print("Template overlay image not found!")
+        return
+
+    player_name = player_data["Name"].lower().replace(" ", "_")
+    img_count = 1
+    for file in os.listdir('./temp_images'):
+        if file.lower().endswith(('.png', '.jpg', '.jpeg')) and not file.startswith("draft_template_filled"):
+            try:
+                file_path = os.path.join('./temp_images', file)
+                img = Image.open(file_path)
+                width, height = img.size
+
+                # Square crop logic
+                new_size = min(width, height)
+                left = (width - new_size) / 2
+                top = 0
+                right = left + new_size
+                bottom = top + new_size
+                cropped_img = img.crop((left, top, right, bottom))
+
+                # Resize to match template dimensions
+                template = Image.open(template_path).convert("RGBA")
+                cropped_img = cropped_img.resize(template.size).convert("RGBA")
+
+                # Composite
+                combined = Image.alpha_composite(cropped_img, template)
+
+                # Save final with player name and index
+                output_filename = f"{player_name}_{img_count}.png"
+                output_path = os.path.join('./final_graphics', output_filename)
+                combined.save(output_path)
+                print(f"Processed and saved: {output_path}")
+                img_count += 1
+            except Exception as e:
+                print(f"Error processing image {file}: {e}")
     
 
 if __name__ == '__main__':
