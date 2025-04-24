@@ -45,6 +45,8 @@ def fetch_images(Name):
 # Crop the image to a square with the player in the center
 def crop_images():
     for file in os.listdir('./temp_images'):
+        if file.lower() == 'draft_template_filled.png':
+            continue
         try:
             file_path = os.path.join('./temp_images', file)
             img = Image.open(file_path)
@@ -77,6 +79,8 @@ def apply_template_overlay():
 
     for file in os.listdir('./temp_images'):
         if not file.lower().endswith(('_cropped.png', '_cropped.jpg')):
+            continue
+        if file.lower() == 'draft_template_filled.png':
             continue
         file_path = os.path.join('./temp_images', file)
         base_img = Image.open(file_path).convert("RGBA")
@@ -176,7 +180,7 @@ def add_text_to_template(player_data):
     draw.text((start_x, y), player_name, font=top_row_font, fill="white", stroke_width=2, stroke_fill="black")
 
     # Bottom row metadata
-    metadata_row = f"{player_round_and_pick_string}, {player_position}, {player_school}"
+    metadata_row = f"{player_round_and_pick_string}, {player_position}, {player_school}".lower()
     bottom_row_font = ImageFont.truetype(font_path, size=bottom_row_font_size)
     draw.text((start_x, y + top_row_font.size + 16), metadata_row, font=bottom_row_font, fill="white", stroke_width=2, stroke_fill="black")
 
