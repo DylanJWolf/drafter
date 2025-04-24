@@ -6,6 +6,7 @@ import difflib
 from email.message import EmailMessage
 from email.utils import make_msgid
 from mimetypes import guess_type
+import time
 
 PROSPECT_DATA_PATH = 'data\cbs_prospect_rankings.csv'
 
@@ -155,6 +156,7 @@ def find_closest_player(name, csv_path=PROSPECT_DATA_PATH):
 
 
 def generate_samples(player_data):
+    start = time.time()
     fetch_images(player_data["Name"])
     add_text_to_template(player_data)  # Creates the filled template once
 
@@ -195,8 +197,9 @@ def generate_samples(player_data):
                 img_count += 1
             except Exception as e:
                 print(f"Error processing image {file}: {e}")
+    end = time.time()
+    print(f"Total time: {end - start} seconds")
     
-
 if __name__ == '__main__':
     name = input("Enter player name: ")
     player_data = find_closest_player(name) 
