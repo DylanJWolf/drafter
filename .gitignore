@@ -1,6 +1,7 @@
 # Ignore all images in temp_images and final_graphics
 temp_images/*
 final_graphics/*
+!final_graphics/*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
