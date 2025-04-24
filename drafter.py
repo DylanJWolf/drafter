@@ -7,8 +7,10 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 from mimetypes import guess_type
 import time
+import threading
 
 PROSPECT_DATA_PATH = 'data\cbs_prospect_rankings.csv'
+NUM_SAMPLES = 10
 
 
 # Clear any existing images in the directory
@@ -41,7 +43,14 @@ def fetch_images(Name):
     filters = dict(
         size = 'large',
     )
-    google_crawler.crawl(keyword=Name, max_num=5, filters=filters)
+    google_crawler.crawl(keyword=Name, max_num=NUM_SAMPLES, filters=filters)
+
+
+# Async wrapper for fetch_images
+def async_fetch_images(Name):
+    thread = threading.Thread(target=fetch_images, args=(Name,))
+    thread.start()
+    return thread
 
 
 # Returns a string representing the round and pick for the given overall pick
@@ -157,7 +166,7 @@ def find_closest_player(name, csv_path=PROSPECT_DATA_PATH):
 
 def generate_samples(player_data):
     start = time.time()
-    fetch_images(player_data["Name"])
+    fetch_thread = async_fetch_images(player_data["Name"])
     add_text_to_template(player_data)  # Creates the filled template once
 
     template_path = './temp_images/draft_template_filled.png'
@@ -167,8 +176,14 @@ def generate_samples(player_data):
 
     player_name = player_data["Name"].lower().replace(" ", "_")
     img_count = 1
-    for file in os.listdir('./temp_images'):
-        if file.lower().endswith(('.png', '.jpg', '.jpeg')) and not file.startswith("draft_template_filled"):
+    processed_files = set()
+    # Loop while fetch_thread is alive or there are unprocessed images
+    while fetch_thread.is_alive() or True:
+        files = [f for f in os.listdir('./temp_images') if f.lower().endswith(('.png', '.jpg', '.jpeg')) and not f.startswith("draft_template_filled")]
+        new_files = [f for f in files if f not in processed_files]
+        if not new_files and not fetch_thread.is_alive():
+            break
+        for file in new_files:
             try:
                 file_path = os.path.join('./temp_images', file)
                 img = Image.open(file_path)
@@ -195,8 +210,10 @@ def generate_samples(player_data):
                 combined.save(output_path)
                 print(f"Processed and saved: {output_path}")
                 img_count += 1
+                processed_files.add(file)
             except Exception as e:
                 print(f"Error processing image {file}: {e}")
+        time.sleep(0.2)  # Avoid tight loop
     end = time.time()
     print(f"Total time: {end - start} seconds")
     
