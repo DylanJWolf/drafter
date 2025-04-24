@@ -232,15 +232,20 @@ def generate_samples(player_data):
         time.sleep(0.2)  # Avoid tight loop
     end = time.time()
     print(f"Total time: {end - start} seconds")
-    
-if __name__ == '__main__':
-    name = input("Enter player name: ")
-    player_data = find_closest_player(name) 
+
+
+def run_player_image_pipeline(player_name, pick_number):
+    player_data = find_closest_player(player_name)
     if not player_data:
-        print(f"Could not find player: {name}")
-        exit()
-    pick = int(input("Enter pick number: "))
-    player_data["Pick"] = pick
+        return False, f"Could not find player: {player_name}"
+    player_data["Pick"] = int(pick_number)
     clear_final_images()
     generate_samples(player_data)
     clear_temp_images()
+    return True, player_data["Name"]
+
+
+if __name__ == '__main__':
+    name = input("Enter player name: ")
+    pick = int(input("Enter pick number: "))
+    run_player_image_pipeline(name, pick)
