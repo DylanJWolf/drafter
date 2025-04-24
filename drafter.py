@@ -10,7 +10,7 @@ import time
 import threading
 
 PROSPECT_DATA_PATH = 'data\cbs_prospect_rankings.csv'
-NUM_SAMPLES = 10
+NUM_SAMPLES = 15
 
 
 # Clear any existing images in the directory
@@ -26,6 +26,9 @@ def clear_temp_images():
 
 def clear_final_images():
     for file in os.listdir('./final_graphics'):
+        # Skip image_server.py and any other .py files
+        if file.endswith('.py'):
+            continue
         file_path = os.path.join('./final_graphics', file)
         try:
             if os.path.isfile(file_path):
@@ -35,20 +38,33 @@ def clear_final_images():
 
 
 # Download the images
-def fetch_images(Name):
-    # Create images directory if it doesn't exist
+def fetch_images(player_data):
+    import glob
+    name = player_data["Name"]
+    school = player_data["School"]
+    search_query = f"{name} {school}"
+
     if not os.path.exists('./temp_images'):
         os.makedirs('./temp_images')
+
+    # First crawl: name + school (up to NUM_SAMPLES)
     google_crawler = GoogleImageCrawler(storage={'root_dir': './temp_images'})
-    filters = dict(
-        size = 'large',
-    )
-    google_crawler.crawl(keyword=Name, max_num=NUM_SAMPLES, filters=filters)
+    google_crawler.crawl(keyword=search_query, max_num=NUM_SAMPLES, filters=None)
+
+    # Count images downloaded
+    image_files = [f for f in os.listdir('./temp_images') if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif'))]
+    num_downloaded = len(image_files)
+
+    # If fewer than NUM_SAMPLES, try to fetch the rest with just the name
+    if num_downloaded < NUM_SAMPLES:
+        remaining = NUM_SAMPLES - num_downloaded
+        google_crawler2 = GoogleImageCrawler(storage={'root_dir': './temp_images'})
+        google_crawler2.crawl(keyword=name, max_num=remaining, filters=None)
 
 
 # Async wrapper for fetch_images
-def async_fetch_images(Name):
-    thread = threading.Thread(target=fetch_images, args=(Name,))
+def async_fetch_images(player_data):
+    thread = threading.Thread(target=fetch_images, args=(player_data,))
     thread.start()
     return thread
 
@@ -166,7 +182,7 @@ def find_closest_player(name, csv_path=PROSPECT_DATA_PATH):
 
 def generate_samples(player_data):
     start = time.time()
-    fetch_thread = async_fetch_images(player_data["Name"])
+    fetch_thread = async_fetch_images(player_data)
     add_text_to_template(player_data)  # Creates the filled template once
 
     template_path = './temp_images/draft_template_filled.png'
