@@ -1,6 +1,6 @@
 from flask import Flask, render_template_string, request, redirect, url_for, jsonify
 import os
-from drafter import run_player_image_pipeline
+from drafter import run_player_image_pipeline, find_closest_player
 from threading import Thread
 
 gallery_dir = os.path.join(os.path.dirname(__file__), 'final_graphics')
@@ -88,6 +88,11 @@ def generate():
     pick_number = request.form.get('pick_number', '').strip()
     if not player_name or not pick_number.isdigit():
         return render_template_string(FORM_HTML, error="Please enter valid player name and pick number.")
+
+    # Check if player exists before starting background task
+    player_data = find_closest_player(player_name)
+    if not player_data:
+        return render_template_string(FORM_HTML, error=f"Could not find player: {player_name}")
 
     # Start image generation in background
     def bg_task():
