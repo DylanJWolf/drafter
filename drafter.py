@@ -8,6 +8,7 @@ from email.utils import make_msgid
 from mimetypes import guess_type
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 PROSPECT_DATA_PATH = 'data\cbs_prospect_rankings.csv'
 NUM_SAMPLES = 15
@@ -193,6 +194,46 @@ def generate_samples(player_data):
     player_name = player_data["Name"].lower().replace(" ", "_")
     img_count = 1
     processed_files = set()
+    max_workers = min(8, os.cpu_count() or 4)  # Use up to 8 threads, or CPU count
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    futures = []
+
+    def process_image(file, img_count):
+        try:
+            file_path = os.path.join('./temp_images', file)
+            img = Image.open(file_path)
+            width, height = img.size
+
+            # Square crop logic
+            new_size = min(width, height)
+            left = (width - new_size) / 2
+            top = 0
+            right = left + new_size
+            bottom = top + new_size
+            cropped_img = img.crop((left, top, right, bottom))
+
+            # Resize to match template dimensions
+            template = Image.open(template_path).convert("RGBA")
+            cropped_img = cropped_img.resize(template.size).convert("RGBA")
+
+            # Composite
+            combined = Image.alpha_composite(cropped_img, template)
+
+            # Save final with player name and index
+            output_filename = f"{player_name}_{img_count}.png"
+            output_path = os.path.join('./final_graphics', output_filename)
+
+            # --- Save as temporary file first ---
+            temp_output_path = output_path + '.tmp'
+            combined.save(temp_output_path, format='PNG')
+
+            # --- After save finishes, rename ---
+            os.rename(temp_output_path, output_path)
+
+            print(f"Processed and saved: {output_path}")
+        except Exception as e:
+            print(f"Error processing image {file}: {e}")
+
     # Loop while fetch_thread is alive or there are unprocessed images
     while fetch_thread.is_alive() or True:
         files = [f for f in os.listdir('./temp_images') if f.lower().endswith(('.png', '.jpg', '.jpeg')) and not f.startswith("draft_template_filled")]
@@ -200,44 +241,15 @@ def generate_samples(player_data):
         if not new_files and not fetch_thread.is_alive():
             break
         for file in new_files:
-            try:
-                file_path = os.path.join('./temp_images', file)
-                img = Image.open(file_path)
-                width, height = img.size
-
-                # Square crop logic
-                new_size = min(width, height)
-                left = (width - new_size) / 2
-                top = 0
-                right = left + new_size
-                bottom = top + new_size
-                cropped_img = img.crop((left, top, right, bottom))
-
-                # Resize to match template dimensions
-                template = Image.open(template_path).convert("RGBA")
-                cropped_img = cropped_img.resize(template.size).convert("RGBA")
-
-                # Composite
-                combined = Image.alpha_composite(cropped_img, template)
-
-                # Save final with player name and index
-                output_filename = f"{player_name}_{img_count}.png"
-                output_path = os.path.join('./final_graphics', output_filename)
-
-                # --- Save as temporary file first ---
-                temp_output_path = output_path + '.tmp'
-                combined.save(temp_output_path, format='PNG')
-
-                # --- After save finishes, rename ---
-                os.rename(temp_output_path, output_path)
-
-                print(f"Processed and saved: {output_path}")
-
-                img_count += 1
-                processed_files.add(file)
-            except Exception as e:
-                print(f"Error processing image {file}: {e}")
-        time.sleep(0.2)  # Avoid tight loop
+            futures.append(executor.submit(process_image, file, img_count))
+            img_count += 1
+            processed_files.add(file)
+        # Remove completed futures
+        futures = [f for f in futures if not f.done()]
+        time.sleep(0.05)  # Much tighter loop for responsiveness
+    # Wait for all processing to finish
+    for f in futures:
+        f.result()
     end = time.time()
     print(f"Total time: {end - start} seconds")
 
