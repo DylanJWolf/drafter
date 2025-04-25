@@ -11,8 +11,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 PROSPECT_DATA_PATH = 'data\cbs_prospect_rankings.csv'
-NUM_SAMPLES = 15
-
 
 # Clear any existing images in the directory
 def clear_temp_images():
@@ -39,7 +37,7 @@ def clear_final_images():
 
 
 # Download the images
-def fetch_images(player_data):
+def fetch_images(player_data, num_samples=15):
     import glob
     name = player_data["Name"]
     school = player_data["School"]
@@ -48,25 +46,25 @@ def fetch_images(player_data):
     if not os.path.exists('./temp_images'):
         os.makedirs('./temp_images')
 
-    # First crawl: name + school (up to NUM_SAMPLES)
+    # First crawl: name + school (up to num_samples)
     google_crawler = GoogleImageCrawler(storage={'root_dir': './temp_images'})
     google_crawler.downloader_threads = 4
-    google_crawler.crawl(keyword=search_query, max_num=NUM_SAMPLES, filters=None)
+    google_crawler.crawl(keyword=search_query, max_num=num_samples, filters=None)
 
     # Count images downloaded
     image_files = [f for f in os.listdir('./temp_images') if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif'))]
     num_downloaded = len(image_files)
 
-    # If fewer than NUM_SAMPLES, try to fetch the rest with just the name
-    if num_downloaded < NUM_SAMPLES:
-        remaining = NUM_SAMPLES - num_downloaded
+    # If fewer than num_samples, try to fetch the rest with just the name
+    if num_downloaded < num_samples:
+        remaining = num_samples - num_downloaded
         google_crawler2 = GoogleImageCrawler(storage={'root_dir': './temp_images'})
         google_crawler2.crawl(keyword=name, max_num=remaining, filters=None)
 
 
 # Async wrapper for fetch_images
-def async_fetch_images(player_data):
-    thread = threading.Thread(target=fetch_images, args=(player_data,))
+def async_fetch_images(player_data, num_samples=15):
+    thread = threading.Thread(target=fetch_images, args=(player_data, num_samples))
     thread.start()
     return thread
 
@@ -182,9 +180,9 @@ def find_closest_player(name, csv_path=PROSPECT_DATA_PATH):
             return None
 
 
-def generate_samples(player_data):
+def generate_samples(player_data, num_samples=15):
     start = time.time()
-    fetch_thread = async_fetch_images(player_data)
+    fetch_thread = async_fetch_images(player_data, num_samples)
     add_text_to_template(player_data)  # Creates the filled template once
 
     template_path = './temp_images/draft_template_filled.png'
@@ -255,14 +253,14 @@ def generate_samples(player_data):
     print(f"Total time: {end - start} seconds")
 
 
-def run_player_image_pipeline(player_name, pick_number):
+def run_player_image_pipeline(player_name, pick_number, num_samples=15):
     player_data = find_closest_player(player_name)
     if not player_data:
         return False, f"Could not find player: {player_name}"
     player_data["Pick"] = int(pick_number)
     clear_final_images()
     clear_temp_images() # Clear in case there was an interuption in the previous run
-    generate_samples(player_data)
+    generate_samples(player_data, num_samples)
     clear_temp_images()
     return True, player_data["Name"]
 
@@ -270,4 +268,11 @@ def run_player_image_pipeline(player_name, pick_number):
 if __name__ == '__main__':
     name = input("Enter player name: ")
     pick = int(input("Enter pick number: "))
-    run_player_image_pipeline(name, pick)
+    num_samples = input("How many images to generate? (default 15): ")
+    try:
+        num_samples = int(num_samples)
+        if num_samples <= 0:
+            num_samples = 15
+    except Exception:
+        num_samples = 15
+    run_player_image_pipeline(name, pick, num_samples)

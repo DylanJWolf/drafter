@@ -25,6 +25,7 @@ FORM_HTML = '''
         <form method="post" action="/generate">
             <input type="text" name="player_name" placeholder="Player Name" required><br>
             <input type="number" name="pick_number" placeholder="Pick Number" required><br>
+            <input type="number" name="num_samples" placeholder="How many images? (default 15)" min="1" value="15"><br>
             <button type="submit">Generate Images</button>
         </form>
         {% if error %}<div style="color: red;">{{ error }}</div>{% endif %}
@@ -89,8 +90,15 @@ def index():
 def generate():
     player_name = request.form.get('player_name', '').strip()
     pick_number = request.form.get('pick_number', '').strip()
+    num_samples = request.form.get('num_samples', '').strip()
     if not player_name or not pick_number.isdigit():
         return render_template_string(FORM_HTML, error="Please enter valid player name and pick number.")
+    try:
+        num_samples = int(num_samples)
+        if num_samples <= 0:
+            num_samples = 15
+    except Exception:
+        num_samples = 15
 
     # Check if player exists before starting background task
     player_data = find_closest_player(player_name)
@@ -101,7 +109,7 @@ def generate():
 
     # Start image generation in background
     def bg_task():
-        run_player_image_pipeline(corrected_name, pick_number)
+        run_player_image_pipeline(corrected_name, pick_number, num_samples=num_samples)
     Thread(target=bg_task, daemon=True).start()
 
     # Redirect to /gallery with corrected player name
