@@ -50,6 +50,7 @@ def fetch_images(player_data):
 
     # First crawl: name + school (up to NUM_SAMPLES)
     google_crawler = GoogleImageCrawler(storage={'root_dir': './temp_images'})
+    google_crawler.downloader_threads = 4
     google_crawler.crawl(keyword=search_query, max_num=NUM_SAMPLES, filters=None)
 
     # Count images downloaded

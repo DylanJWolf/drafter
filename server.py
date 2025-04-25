@@ -75,7 +75,7 @@ GALLERY_HTML = '''
                 });
             });
     }
-    setInterval(fetchImages, 500); // Poll every 2 seconds
+    setInterval(fetchImages, 100); // Poll every 100ms
     </script>
 </body>
 </html>
