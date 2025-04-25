@@ -223,8 +223,16 @@ def generate_samples(player_data):
                 # Save final with player name and index
                 output_filename = f"{player_name}_{img_count}.png"
                 output_path = os.path.join('./final_graphics', output_filename)
-                combined.save(output_path)
+
+                # --- Save as temporary file first ---
+                temp_output_path = output_path + '.tmp'
+                combined.save(temp_output_path, format='PNG')
+
+                # --- After save finishes, rename ---
+                os.rename(temp_output_path, output_path)
+
                 print(f"Processed and saved: {output_path}")
+
                 img_count += 1
                 processed_files.add(file)
             except Exception as e:
@@ -240,6 +248,7 @@ def run_player_image_pipeline(player_name, pick_number):
         return False, f"Could not find player: {player_name}"
     player_data["Pick"] = int(pick_number)
     clear_final_images()
+    clear_temp_images() # Clear in case there was an interuption in the previous run
     generate_samples(player_data)
     clear_temp_images()
     return True, player_data["Name"]
