@@ -94,18 +94,19 @@ def generate():
     if not player_data:
         return render_template_string(FORM_HTML, error=f"Could not find player: {player_name}")
 
+    corrected_name = player_data['Name']
+
     # Start image generation in background
     def bg_task():
-        run_player_image_pipeline(player_name, pick_number)
+        run_player_image_pipeline(corrected_name, pick_number)
     Thread(target=bg_task, daemon=True).start()
 
-    # Immediately redirect to gallery
-    return redirect(url_for('gallery', player_name=player_name))
+    # Redirect to /gallery with corrected player name
+    return redirect(url_for('gallery', player_name=corrected_name))
 
 @app.route('/gallery')
 def gallery():
     player_name = request.args.get('player_name', '')
-    # List images in final_graphics for the player
     images = [f for f in os.listdir(gallery_dir)
               if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')) and
               player_name.lower().replace(' ', '_') in f.lower()]
