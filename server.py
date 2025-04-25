@@ -56,19 +56,22 @@ GALLERY_HTML = '''
     <br><a href="/">&larr; Generate another</a>
     <script>
     const playerName = {{ player_name|tojson }};
+    let currentImages = Array.from(document.querySelectorAll('#gallery img')).map(img => img.getAttribute('src'));
     function fetchImages() {
         fetch(`/gallery_data?player_name=${encodeURIComponent(playerName)}`)
             .then(resp => resp.json())
             .then(data => {
                 const gallery = document.getElementById('gallery');
-                // Remove all children
-                while (gallery.firstChild) gallery.removeChild(gallery.firstChild);
-                // Add new images
-                data.images.forEach(img => {
-                    const el = document.createElement('img');
-                    el.src = `/final_graphics/${img}`;
-                    el.alt = img;
-                    gallery.appendChild(el);
+                const newImages = data.images.map(img => `/final_graphics/${img}`);
+                // Only append new images
+                newImages.forEach((src, idx) => {
+                    if (!currentImages.includes(src)) {
+                        const el = document.createElement('img');
+                        el.src = src;
+                        el.alt = data.images[idx];
+                        gallery.appendChild(el);
+                        currentImages.push(src);
+                    }
                 });
             });
     }
